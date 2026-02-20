@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>ChurchConnect</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1923;
+    --bg2: #162032;
+    --bg3: #1e2d40;
+    --border: rgba(255,255,255,0.07);
+    --gold: #c9a84c;
+    --gold-light: #f0d080;
+    --blue: #3a7bd5;
+    --blue-light: #5a9bf5;
+    --text: #e8f0fe;
+    --text2: #8fa3c0;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --bubble-me: linear-gradient(135deg, #3a7bd5, #2d5fa8);
+    --bubble-them: #1e2d40;
+    --radius: 16px;
+  }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    font-size: 15px;
+  }
+
+  /* ── Auth ──────────────────────────────────────────────────────────────── */
+  #auth-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: radial-gradient(ellipse at 50% 0%, #1e3a6a 0%, #0f1923 70%);
+  }
+
+  .auth-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 40px;
+    width: 420px;
+    max-width: 95vw;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  }
+
+  .auth-logo {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .auth-logo .cross {
+    font-size: 48px;
+    display: block;
+    background: linear-gradient(135deg, var(--gold), var(--gold-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+
+  .auth-logo h1 { font-size: 26px; font-weight: 800; }
+  .auth-logo p { color: var(--text2); font-size: 13px; margin-top: 4px; }
+
+  .tabs { display: flex; background: var(--bg3); border-radius: 12px; padding: 4px; margin-bottom: 24px; }
+  .tab-btn {
+    flex: 1; padding: 10px; border: none; background: transparent;
+    color: var(--text2); font-size: 14px; font-weight: 600; border-radius: 10px;
+    cursor: pointer; transition: all 0.2s; font-family: 'Nunito', sans-serif;
+  }
+  .tab-btn.active { background: var(--blue); color: #fff; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  
+  input, select, textarea {
+    width: 100%; padding: 12px 16px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text); font-size: 14px;
+    font-family: 'Nunito', sans-serif; outline: none; transition: border 0.2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+  select option { background: var(--bg3); }
+
+  .btn {
+    width: 100%; padding: 14px; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: 'Nunito', sans-serif; transition: all 0.2s;
+  }
+  .btn-primary { background: linear-gradient(135deg, #3a7bd5, #2d5fa8); color: #fff; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(58,123,213,0.4); }
+  .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+  .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: #1a1200; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+  .btn-sm { width: auto; padding: 8px 18px; font-size: 13px; }
+  .btn-icon { width: auto; padding: 10px; border-radius: 50%; aspect-ratio: 1; }
+
+  .error-msg { color: var(--red); font-size: 13px; text-align: center; margin-bottom: 12px; padding: 10px; background: rgba(231,76,60,0.1); border-radius: 10px; }
+
+  /* ── App Layout ──────────────────────────────────────────────────────────── */
+  #app-screen {
+    display: none;
+    height: 100vh;
+    flex-direction: row;
+  }
+  #app-screen.visible { display: flex; }
+
+  /* ── Sidebar ─────────────────────────────────────────────────────────────── */
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  .sidebar-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg3);
+  }
+
+  .sidebar-logo {
+    font-size: 22px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+  }
+
+  .sidebar-title { flex: 1; font-weight: 700; font-size: 17px; }
+
+  .search-box {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-box input {
+    background: var(--bg3);
+    padding: 10px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+  }
+
+  /* Tab nav */
+  .nav-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .nav-tab {
+    flex: 1; padding: 10px 4px; border: none; background: transparent;
+    color: var(--text2); font-size: 11px; font-weight: 700; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.2s;
+    font-family: 'Nunito', sans-serif; display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+  }
+  .nav-tab .nav-icon { font-size: 18px; }
+  .nav-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  .sidebar-content { flex: 1; overflow-y: auto; }
+  .sidebar-content::-webkit-scrollbar { width: 4px; }
+  .sidebar-content::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+  /* Conversation list */
+  .convo-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; cursor: pointer; transition: background 0.15s;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .convo-item:hover { background: rgba(255,255,255,0.04); }
+  .convo-item.active { background: rgba(58,123,213,0.15); }
+
+  .avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue), #5a3db0);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700; flex-shrink: 0; position: relative;
+    overflow: hidden;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar-sm { width: 36px; height: 36px; font-size: 15px; }
+  .avatar-xs { width: 28px; height: 28px; font-size: 12px; }
+
+  .online-dot {
+    position: absolute; bottom: 2px; right: 2px;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--green); border: 2px solid var(--bg2);
+  }
+
+  .convo-info { flex: 1; min-width: 0; }
+  .convo-name { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+  .convo-preview { color: var(--text2); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .convo-meta { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .convo-time { color: var(--text2); font-size: 11px; }
+  .unread-badge {
+    background: var(--blue); color: #fff;
+    font-size: 11px; font-weight: 700;
+    padding: 2px 7px; border-radius: 10px; min-width: 20px; text-align: center;
+  }
+
+  /* ── Main Chat Area ───────────────────────────────────────────────────────── */
+  .main-area {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+  }
+
+  .chat-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg2);
+  }
+
+  .chat-header-info { flex: 1; }
+  .chat-header-name { font-weight: 700; font-size: 16px; }
+  .chat-header-sub { color: var(--text2); font-size: 12px; }
+
+  .header-actions { display: flex; gap: 8px; }
+
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: transparent; border: none; color: var(--text2);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; transition: all 0.15s;
+  }
+  .icon-btn:hover { background: var(--bg3); color: var(--text); }
+
+  /* Messages */
+  .messages-area {
+    flex: 1; overflow-y: auto; padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    background: var(--bg);
+  }
+  .messages-area::-webkit-scrollbar { width: 4px; }
+  .messages-area::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+  .message-row { display: flex; align-items: flex-end; gap: 8px; max-width: 70%; }
+  .message-row.me { align-self: flex-end; flex-direction: row-reverse; }
+  .message-row.them { align-self: flex-start; }
+
+  .bubble {
+    padding: 10px 14px; border-radius: 18px;
+    font-size: 14px; line-height: 1.5; word-break: break-word;
+    position: relative;
+  }
+  .bubble.me { background: var(--bubble-me); border-bottom-right-radius: 4px; }
+  .bubble.them { background: var(--bubble-them); border-bottom-left-radius: 4px; }
+  .bubble.deleted { opacity: 0.5; font-style: italic; }
+
+  .bubble-sender { font-size: 11px; font-weight: 700; color: var(--gold); margin-bottom: 2px; }
+
+  .bubble-meta { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px; }
+  .bubble-time { font-size: 11px; color: rgba(255,255,255,0.5); }
+  .read-status { font-size: 13px; }
+
+  .date-divider {
+    text-align: center; color: var(--text2); font-size: 12px; font-weight: 600;
+    margin: 8px 0; display: flex; align-items: center; gap: 12px;
+  }
+  .date-divider::before, .date-divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  .typing-indicator {
+    display: none; align-items: center; gap: 6px;
+    color: var(--text2); font-size: 13px; padding: 4px 0;
+  }
+  .typing-dots { display: flex; gap: 3px; }
+  .typing-dots span {
+    width: 6px; height: 6px; background: var(--text2);
+    border-radius: 50%; animation: bounce 1.2s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+  /* Message Input */
+  .input-area {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex; align-items: flex-end; gap: 10px;
+  }
+
+  .input-area textarea {
+    flex: 1; resize: none; max-height: 120px; min-height: 44px;
+    border-radius: 22px; padding: 11px 18px;
+    font-size: 14px; overflow-y: auto;
+  }
+
+  .send-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--blue); border: none; color: #fff;
+    font-size: 18px; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; transition: all 0.2s;
+  }
+  .send-btn:hover { background: var(--blue-light); transform: scale(1.05); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Welcome screen */
+  .welcome-screen {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 16px; color: var(--text2);
+    background: var(--bg);
+  }
+  .welcome-screen .big-cross { font-size: 64px; opacity: 0.3; }
+  .welcome-screen h2 { font-size: 22px; color: var(--text); }
+
+  /* Church panel */
+  .church-panel { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .church-card {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .church-card:hover { border-color: var(--gold); transform: translateY(-1px); }
+  .church-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; display: flex; gap: 8px; align-items: center; }
+  .church-card p { color: var(--text2); font-size: 13px; line-height: 1.5; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 1000;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 28px; width: 440px;
+    max-width: 95vw; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+  .modal h2 { font-size: 20px; font-weight: 800; margin-bottom: 20px; }
+  .modal-footer { display: flex; gap: 10px; margin-top: 20px; }
+
+  /* Role badge */
+  .role-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 8px;
+    border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .role-pastor { background: rgba(201,168,76,0.2); color: var(--gold); }
+  .role-leader { background: rgba(58,123,213,0.2); color: var(--blue-light); }
+  .role-admin { background: rgba(231,76,60,0.2); color: #ff8080; }
+  .role-member { background: rgba(255,255,255,0.05); color: var(--text2); }
+
+  /* Members list */
+  .member-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .member-item:last-child { border: none; }
+  .member-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .member-check.checked { background: var(--blue); border-color: var(--blue); }
+
+  /* Prayer items */
+  .prayer-item { background: var(--bg3); border-radius: 14px; padding: 14px; border: 1px solid var(--border); margin-bottom: 10px; }
+  .prayer-item h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .prayer-item p { color: var(--text2); font-size: 13px; line-height: 1.5; }
+  .prayer-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .pray-btn { background: none; border: 1px solid var(--border); color: var(--text2); padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; font-family: 'Nunito', sans-serif; transition: all 0.15s; }
+  .pray-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Quiz */
+  .quiz-q { font-weight: 700; margin-bottom: 12px; }
+  .quiz-option { padding: 10px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer; font-size: 14px; transition: all 0.15s; }
+  .quiz-option:hover { border-color: var(--blue); }
+  .quiz-option.selected { border-color: var(--blue); background: rgba(58,123,213,0.15); }
+  .quiz-option.correct { border-color: var(--green); background: rgba(46,204,113,0.15); }
+  .quiz-option.wrong { border-color: var(--red); background: rgba(231,76,60,0.15); }
+
+  /* Notifications */
+  #toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { padding: 12px 18px; border-radius: 12px; font-size: 14px; font-weight: 600; animation: slideIn 0.3s ease; max-width: 300px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+  @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .toast.success { background: #1a4a2e; border: 1px solid var(--green); color: #7dd4a0; }
+  .toast.error { background: #4a1a1a; border: 1px solid var(--red); color: #f5a8a8; }
+  .toast.info { background: #1a2d4a; border: 1px solid var(--blue); color: #a8d4f5; }
+
+  /* Call overlay */
+  #call-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(5,10,20,0.97);
+    z-index: 2000; flex-direction: column; align-items: center; justify-content: center;
+    gap: 24px;
+  }
+  #call-overlay.active { display: flex; }
+  .call-avatar { width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), #5a3db0); display: flex; align-items: center; justify-content: center; font-size: 42px; box-shadow: 0 0 60px rgba(58,123,213,0.4); }
+  .call-name { font-size: 26px; font-weight: 800; }
+  .call-status { color: var(--text2); font-size: 15px; }
+  .call-actions { display: flex; gap: 20px; }
+  .call-btn { width: 60px; height: 60px; border-radius: 50%; border: none; font-size: 22px; cursor: pointer; transition: all 0.2s; }
+  .call-btn:hover { transform: scale(1.1); }
+  .call-btn.end { background: var(--red); }
+  .call-btn.accept { background: var(--green); }
+  .call-btn.mute { background: var(--bg3); }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .sidebar { width: 100%; min-width: 100%; }
+    .sidebar.hidden { display: none; }
+    .main-area.hidden { display: none; }
+    .back-btn { display: flex !important; }
+  }
+  .back-btn { display: none; }
+
+  /* Scrollbar */
+  * { scrollbar-width: thin; scrollbar-color: var(--bg3) transparent; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text2); }
+  .empty-state .emoji { font-size: 40px; margin-bottom: 12px; }
+
+  /* Announcement */
+  .announcement-item { background: linear-gradient(135deg, rgba(201,168,76,0.1), rgba(201,168,76,0.05)); border: 1px solid rgba(201,168,76,0.2); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+  .announcement-item h4 { color: var(--gold); font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .announcement-item p { color: var(--text2); font-size: 13px; line-height: 1.5; }
+  .announcement-item .ann-meta { font-size: 11px; color: var(--text2); margin-top: 8px; }
+
+  /* Event item */
+  .event-item { display: flex; gap: 14px; background: var(--bg3); border-radius: 14px; padding: 14px; border: 1px solid var(--border); margin-bottom: 10px; }
+  .event-date-block { text-align: center; background: var(--blue); border-radius: 10px; padding: 10px 14px; min-width: 52px; }
+  .event-day { font-size: 22px; font-weight: 800; line-height: 1; }
+  .event-month { font-size: 11px; font-weight: 600; opacity: 0.8; }
+  .event-info h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .event-info p { color: var(--text2); font-size: 12px; }
+
+  /* New group button */
+  .new-btn { margin: 12px 16px 0; padding: 10px; background: var(--bg3); border: 1px dashed var(--border); border-radius: 12px; cursor: pointer; color: var(--text2); font-size: 13px; font-weight: 600; font-family: 'Nunito', sans-serif; width: calc(100% - 32px); transition: all 0.15s; }
+  .new-btn:hover { border-color: var(--blue); color: var(--blue); }
+</style>
+</head>
+<body>
+
+<!-- ── Auth Screen ─────────────────────────────────────────────────────────── -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="cross">✝</span>
+      <h1>ChurchConnect</h1>
+      <p>Your church community, connected</p>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('login')">Sign In</button>
+      <button class="tab-btn" onclick="showTab('register')">Register</button>
+    </div>
+
+    <!-- Login -->
+    <div id="login-form">
+      <div id="login-error" class="error-msg" style="display:none"></div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="you@church.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()">
+      </div>
+      <button class="btn btn-primary" onclick="login()" id="login-btn">Sign In</button>
+    </div>
+
+    <!-- Register -->
+    <div id="register-form" style="display:none">
+      <div id="reg-error" class="error-msg" style="display:none"></div>
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" id="reg-name" placeholder="Pastor John Doe">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="reg-email" placeholder="you@church.com">
+      </div>
+      <div class="form-group">
+        <label>Phone (optional)</label>
+        <input type="tel" id="reg-phone" placeholder="+1 234 567 8900">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="reg-password" placeholder="Min 6 characters">
+      </div>
+      <div class="form-group">
+        <label>Church Role</label>
+        <select id="reg-role">
+          <option value="member">Member</option>
+          <option value="leader">Leader</option>
+          <option value="pastor">Pastor</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="register()" id="reg-btn">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── App Screen ─────────────────────────────────────────────────────────── -->
+<div id="app-screen">
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-logo">✝</span>
+      <span class="sidebar-title">ChurchConnect</span>
+      <button class="icon-btn" onclick="openNewConvoModal()" title="New Chat">✏️</button>
+      <button class="icon-btn" onclick="logout()" title="Logout">🚪</button>
+    </div>
+    <div class="search-box">
+      <input type="text" id="search-input" placeholder="🔍  Search conversations..." oninput="filterConvos(this.value)">
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('chats')" data-tab="chats">
+        <span class="nav-icon">💬</span>Chats
+      </button>
+      <button class="nav-tab" onclick="switchTab('groups')" data-tab="groups">
+        <span class="nav-icon">👥</span>Groups
+      </button>
+      <button class="nav-tab" onclick="switchTab('church')" data-tab="church">
+        <span class="nav-icon">✝</span>Church
+      </button>
+      <button class="nav-tab" onclick="switchTab('profile')" data-tab="profile">
+        <span class="nav-icon">👤</span>Profile
+      </button>
+    </div>
+    <div class="sidebar-content" id="sidebar-content">
+      <!-- Filled dynamically -->
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-area" id="main-area">
+    <div class="welcome-screen" id="welcome-screen">
+      <div class="big-cross">✝</div>
+      <h2>Welcome to ChurchConnect</h2>
+      <p style="color:var(--text2);font-size:14px">Select a conversation to start chatting</p>
+    </div>
+
+    <!-- Chat view (hidden by default) -->
+    <div id="chat-view" style="display:none;flex:1;flex-direction:column;">
+      <div class="chat-header">
+        <button class="icon-btn back-btn" onclick="showSidebar()">←</button>
+        <div class="avatar" id="chat-avatar"></div>
+        <div class="chat-header-info">
+          <div class="chat-header-name" id="chat-name"></div>
+          <div class="chat-header-sub" id="chat-sub"></div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" onclick="startVoiceCall()" title="Voice Call">📞</button>
+          <button class="icon-btn" onclick="startVideoCall()" title="Video Call">📹</button>
+          <button class="icon-btn" onclick="openChatInfo()" title="Info">ℹ️</button>
+        </div>
+      </div>
+      <div class="messages-area" id="messages-area"></div>
+      <div class="typing-indicator" id="typing-indicator" style="padding: 0 20px 8px;">
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+        <span id="typing-name">Someone is typing</span>
+      </div>
+      <div class="input-area">
+        <textarea id="msg-input" placeholder="Type a message..." rows="1"
+          oninput="autoResize(this);handleTyping()"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+        <button class="send-btn" onclick="sendMessage()" id="send-btn">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast"></div>
+
+<!-- ── Modals ─────────────────────────────────────────────────────────────── -->
+<!-- New Conversation Modal -->
+<div class="modal-overlay" id="new-convo-modal">
+  <div class="modal">
+    <h2>New Conversation</h2>
+    <div class="tabs" style="margin-bottom:16px">
+      <button class="tab-btn active" onclick="setConvoType('direct')" id="direct-tab">Direct</button>
+      <button class="tab-btn" onclick="setConvoType('group')" id="group-tab">Group</button>
+    </div>
+    <div id="group-name-field" style="display:none">
+      <div class="form-group">
+        <label>Group Name</label>
+        <input type="text" id="group-name-input" placeholder="e.g. Youth Group, Choir...">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Search Members</label>
+      <input type="text" id="member-search" placeholder="Search by name..." oninput="searchMembers(this.value)">
+    </div>
+    <div id="member-list" style="max-height:240px;overflow-y:auto;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('new-convo-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createConversation()">Start</button>
+    </div>
+  </div>
+</div>
+
+<!-- Prayer Modal -->
+<div class="modal-overlay" id="prayer-modal">
+  <div class="modal">
+    <h2>🙏 Submit Prayer Request</h2>
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" id="prayer-title" placeholder="Brief title for your request">
+    </div>
+    <div class="form-group">
+      <label>Prayer Request</label>
+      <textarea id="prayer-body" rows="4" placeholder="Share your prayer request with the community..."></textarea>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" id="prayer-anon" style="width:auto">
+      <label for="prayer-anon" style="font-size:14px;color:var(--text2);margin-bottom:0">Post anonymously</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('prayer-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="submitPrayer()">🙏 Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Event Modal -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal">
+    <h2>📅 Create Event</h2>
+    <div class="form-group"><label>Title</label><input type="text" id="event-title" placeholder="Sunday Service, Bible Study..."></div>
+    <div class="form-group"><label>Description</label><textarea id="event-desc" rows="2" placeholder="Event details..."></textarea></div>
+    <div class="form-group"><label>Location</label><input type="text" id="event-location" placeholder="Church Hall, Zoom link..."></div>
+    <div class="form-group"><label>Type</label>
+      <select id="event-type">
+        <option value="service">Sunday Service</option>
+        <option value="bible_study">Bible Study</option>
+        <option value="crusade">Crusade / Revival</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Start Date & Time</label><input type="datetime-local" id="event-start"></div>
+    <div class="form-group"><label>End Date & Time</label><input type="datetime-local" id="event-end"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('event-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createEvent()">Create Event</button>
+    </div>
+  </div>
+</div>
+
+<!-- Announcement Modal -->
+<div class="modal-overlay" id="ann-modal">
+  <div class="modal">
+    <h2>📢 New Announcement</h2>
+    <div class="form-group"><label>Title</label><input type="text" id="ann-title" placeholder="Important announcement..."></div>
+    <div class="form-group"><label>Message</label><textarea id="ann-body" rows="4" placeholder="Share news with the entire church community..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('ann-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="postAnnouncement()">📢 Broadcast</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chat Info Modal -->
+<div class="modal-overlay" id="chat-info-modal">
+  <div class="modal">
+    <h2 id="chat-info-title">Conversation Info</h2>
+    <div id="chat-info-content"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('chat-info-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Call Overlay -->
+<div id="call-overlay">
+  <div class="call-avatar"><span id="call-emoji">👤</span></div>
+  <div class="call-name" id="call-name-display"></div>
+  <div class="call-status" id="call-status-display">Calling...</div>
+  <div class="call-actions" id="call-actions">
+    <button class="call-btn end" onclick="endCall()">📵</button>
+    <button class="call-btn mute" id="mute-btn" onclick="toggleMute()">🎤</button>
+  </div>
+  <div id="call-incoming-actions" style="display:none">
+    <div class="call-actions">
+      <button class="call-btn end" onclick="rejectCall()">📵</button>
+      <button class="call-btn accept" onclick="acceptCall()">📞</button>
+    </div>
+  </div>
+  <video id="local-video" autoplay muted style="width:150px;border-radius:12px;position:absolute;bottom:20px;right:20px;display:none"></video>
+  <video id="remote-video" autoplay style="width:100%;max-width:500px;border-radius:16px;display:none"></video>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+const API = window.CHURCH_API_URL || 'http://localhost:4000/api';
+const WS  = window.CHURCH_WS_URL  || 'http://localhost:4000';
+
+// ── STATE ───────────────────────────────────────────────────────────────────
+let token = null;
+let currentUser = null;
+let socket = null;
+let conversations = [];
+let currentConvo = null;
+let allUsers = [];
+let selectedUsers = [];
+let newConvoType = 'direct';
+let typingTimer = null;
+let typingConvo = null;
+let peerConnection = null;
+let localStream = null;
+let callData = null;
+
+// ── UTILS ───────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function toast(msg, type = 'info') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  $('toast').appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+async function api(method, path, body) {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(Date.now() - 86400000);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function initials(name) {
+  return (name || '?').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+}
+
+function avatarEl(name, avatarUrl, isOnline, size = '') {
+  const cls = `avatar ${size}`;
+  const img = avatarUrl ? `<img src="${avatarUrl}" alt="">` : initials(name);
+  const dot = isOnline ? '<div class="online-dot"></div>' : '';
+  return `<div class="${cls}">${img}${dot}</div>`;
+}
+
+function roleClass(role) { return `role-${role}`; }
+
+function openModal(id) { $(id).classList.add('open'); }
+function closeModal(id) { $(id).classList.remove('open'); }
+
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+function showTab(tab) {
+  $('login-form').style.display = tab === 'login' ? 'block' : 'none';
+  $('register-form').style.display = tab === 'register' ? 'block' : 'none';
+  document.querySelectorAll('#auth-screen .tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'));
+  });
+}
+
+async function login() {
+  const email = $('login-email').value.trim();
+  const password = $('login-password').value;
+  $('login-error').style.display = 'none';
+  if (!email || !password) { $('login-error').textContent = 'Please fill all fields'; $('login-error').style.display = 'block'; return; }
+  $('login-btn').disabled = true;
+  $('login-btn').textContent = 'Signing in...';
+  try {
+    const data = await api('POST', '/auth/login', { email, password });
+    token = data.token;
+    currentUser = data.user;
+    initApp();
+  } catch (err) {
+    $('login-error').textContent = err.message;
+    $('login-error').style.display = 'block';
+  } finally {
+    $('login-btn').disabled = false;
+    $('login-btn').textContent = 'Sign In';
+  }
+}
+
+async function register() {
+  const full_name = $('reg-name').value.trim();
+  const email = $('reg-email').value.trim();
+  const phone = $('reg-phone').value.trim();
+  const password = $('reg-password').value;
+  const church_role = $('reg-role').value;
+  $('reg-error').style.display = 'none';
+  if (!full_name || !email || !password) { $('reg-error').textContent = 'Please fill required fields'; $('reg-error').style.display = 'block'; return; }
+  $('reg-btn').disabled = true;
+  $('reg-btn').textContent = 'Creating account...';
+  try {
+    const data = await api('POST', '/auth/register', { full_name, email, phone, password, church_role });
+    token = data.token;
+    currentUser = data.user;
+    initApp();
+  } catch (err) {
+    $('reg-error').textContent = err.message;
+    $('reg-error').style.display = 'block';
+  } finally {
+    $('reg-btn').disabled = false;
+    $('reg-btn').textContent = 'Create Account';
+  }
+}
+
+function logout() {
+  if (socket) socket.disconnect();
+  token = null; currentUser = null; conversations = []; currentConvo = null;
+  $('auth-screen').style.display = 'flex';
+  $('app-screen').classList.remove('visible');
+}
+
+// ── APP INIT ─────────────────────────────────────────────────────────────────
+async function initApp() {
+  $('auth-screen').style.display = 'none';
+  $('app-screen').classList.add('visible');
+  connectSocket();
+  await Promise.all([loadConversations(), loadUsers()]);
+  switchTab('chats');
+  toast(`Welcome back, ${currentUser.full_name}! 🙏`, 'success');
+}
+
+// ── SOCKET ───────────────────────────────────────────────────────────────────
+function connectSocket() {
+  socket = io(WS, { auth: { token }, transports: ['websocket', 'polling'] });
+
+  socket.on('connect', () => console.log('🔌 Socket connected'));
+  socket.on('connect_error', err => console.error('Socket error:', err.message));
+
+  socket.on('message:received', (msg) => {
+    if (currentConvo && msg.conversation_id === currentConvo.id) {
+      appendMessage(msg);
+      socket.emit('message:read', { conversationId: currentConvo.id, messageIds: [msg.id] });
+      scrollToBottom();
+    } else {
+      const sender = msg.sender_name || 'Someone';
+      toast(`💬 ${sender}: ${msg.content.substring(0, 60)}`, 'info');
+    }
+    updateConvoPreview(msg);
+  });
+
+  socket.on('message:sent', (msg) => {
+    // Replace temp message
+    const temp = document.querySelector(`[data-temp="${msg.tempId}"]`);
+    if (temp) { temp.dataset.id = msg.id; temp.removeAttribute('data-temp'); }
+    updateConvoPreview(msg);
+  });
+
+  socket.on('message:deleted', ({ messageId }) => {
+    const el = document.querySelector(`[data-id="${messageId}"] .bubble`);
+    if (el) { el.textContent = 'This message was deleted'; el.classList.add('deleted'); }
+  });
+
+  socket.on('typing:start', ({ conversationId, userId, name }) => {
+    if (currentConvo && conversationId === currentConvo.id && userId !== currentUser.id) {
+      $('typing-name').textContent = `${name} is typing...`;
+      $('typing-indicator').style.display = 'flex';
+    }
+  });
+
+  socket.on('typing:stop', ({ conversationId }) => {
+    if (currentConvo && conversationId === currentConvo.id) {
+      $('typing-indicator').style.display = 'none';
+    }
+  });
+
+  socket.on('message:read', ({ conversationId, userId }) => {
+    if (currentConvo && conversationId === currentConvo.id && userId !== currentUser.id) {
+      document.querySelectorAll('.read-status').forEach(el => el.textContent = '✓✓');
+    }
+  });
+
+  socket.on('user:online', ({ userId, is_online, last_seen }) => {
+    // Update avatar dot for current convo if it's a direct with this user
+    if (currentConvo && currentConvo.type === 'direct') {
+      const other = currentConvo.members?.find(m => m.id !== currentUser.id);
+      if (other && other.id === userId) {
+        $('chat-sub').textContent = is_online ? '🟢 Online' : `Last seen ${formatTime(last_seen || new Date())}`;
+      }
+    }
+  });
+
+  // ── Calls ──────────────────────────────────────────────────────────────────
+  socket.on('call:incoming', async ({ callerId, callerName, callerAvatar, offer, type }) => {
+    callData = { callerId, callerName, type, offer };
+    $('call-emoji').textContent = type === 'video' ? '📹' : '📞';
+    $('call-name-display').textContent = callerName;
+    $('call-status-display').textContent = `Incoming ${type} call...`;
+    $('call-actions').style.display = 'none';
+    $('call-incoming-actions').style.display = 'block';
+    $('call-overlay').classList.add('active');
+  });
+
+  socket.on('call:answered', async ({ answer }) => {
+    if (peerConnection) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      $('call-status-display').textContent = 'Connected';
+    }
+  });
+
+  socket.on('call:ice-candidate', async ({ candidate }) => {
+    if (peerConnection && candidate) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  });
+
+  socket.on('call:ended', () => { endCallUI(); toast('Call ended', 'info'); });
+  socket.on('call:rejected', () => { endCallUI(); toast('Call declined', 'info'); });
+  socket.on('call:unavailable', () => { endCallUI(); toast('User is not available', 'error'); });
+}
+
+// ── CONVERSATIONS ─────────────────────────────────────────────────────────────
+async function loadConversations() {
+  try {
+    const data = await api('GET', '/conversations');
+    conversations = data.conversations || [];
+  } catch (err) { console.error('Load convos error:', err); }
+}
+
+async function loadUsers() {
+  try {
+    const data = await api('GET', '/users');
+    allUsers = data.users || [];
+  } catch (err) { console.error('Load users error:', err); }
+}
+
+function updateConvoPreview(msg) {
+  const convo = conversations.find(c => c.id === msg.conversation_id);
+  if (convo) { convo.last_message = msg; }
+  if (currentTab === 'chats' || currentTab === 'groups') renderConvoList();
+}
+
+let currentTab = 'chats';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const c = $('sidebar-content');
+  if (currentTab === 'chats') { renderConvoList('direct'); }
+  else if (currentTab === 'groups') { renderConvoList('group'); }
+  else if (currentTab === 'church') { renderChurchPanel(); }
+  else if (currentTab === 'profile') { renderProfilePanel(); }
+}
+
+function renderConvoList(type) {
+  const list = type ? conversations.filter(c => c.type === type) : conversations;
+  const c = $('sidebar-content');
+  const q = $('search-input').value.toLowerCase();
+  const filtered = list.filter(c => !q || (c.name || getConvoName(c)).toLowerCase().includes(q));
+
+  const showNewGroup = currentTab === 'groups' && ['admin','pastor','leader'].includes(currentUser?.church_role);
+
+  let html = showNewGroup ? `<button class="new-btn" onclick="openNewConvoModal()">+ Create Group</button>` : '';
+
+  if (!filtered.length) {
+    html += `<div class="empty-state"><div class="emoji">${type === 'group' ? '👥' : '💬'}</div><p>No conversations yet.<br>Start one!</p></div>`;
+  } else {
+    filtered.forEach(convo => {
+      const name = getConvoName(convo);
+      const initChar = initials(name);
+      const other = convo.type === 'direct' ? convo.members?.find(m => m.id !== currentUser?.id) : null;
+      const isOnline = other?.is_online;
+      const lastMsg = convo.last_message;
+      const preview = lastMsg ? (lastMsg.sender_id === currentUser?.id ? `You: ${lastMsg.content}` : lastMsg.content) : 'No messages yet';
+      const time = lastMsg ? formatTime(lastMsg.created_at) : '';
+      const unread = convo.unread_count > 0 ? `<div class="unread-badge">${convo.unread_count}</div>` : '';
+      const dot = isOnline ? '<div class="online-dot"></div>' : '';
+      const active = currentConvo?.id === convo.id ? ' active' : '';
+
+      html += `
+        <div class="convo-item${active}" onclick="openConvo('${convo.id}')">
+          <div class="avatar">${initChar}${dot}</div>
+          <div class="convo-info">
+            <div class="convo-name">${name}</div>
+            <div class="convo-preview">${preview.substring(0, 50)}</div>
+          </div>
+          <div class="convo-meta">
+            <div class="convo-time">${time}</div>
+            ${unread}
+          </div>
+        </div>`;
+    });
+  }
+  c.innerHTML = html;
+}
+
+function getConvoName(convo) {
+  if (convo.name) return convo.name;
+  if (convo.type === 'direct') {
+    const other = convo.members?.find(m => m.id !== currentUser?.id);
+    return other?.full_name || 'Unknown';
+  }
+  return 'Group Chat';
+}
+
+function filterConvos(q) { renderSidebar(); }
+
+async function openConvo(id) {
+  currentConvo = conversations.find(c => c.id === id);
+  if (!currentConvo) return;
+
+  // Fetch latest members
+  try {
+    const data = await api('GET', `/conversations/${id}/members`);
+    currentConvo.members = data.members;
+  } catch {}
+
+  const name = getConvoName(currentConvo);
+  const other = currentConvo.type === 'direct' ? currentConvo.members?.find(m => m.id !== currentUser?.id) : null;
+
+  $('chat-avatar').innerHTML = initials(name);
+  $('chat-name').textContent = name;
+  $('chat-sub').textContent = other ? (other.is_online ? '🟢 Online' : 'Offline') : `${currentConvo.members?.length || 0} members`;
+
+  $('welcome-screen').style.display = 'none';
+  const cv = $('chat-view');
+  cv.style.display = 'flex';
+  cv.style.flexDirection = 'column';
+
+  // Load messages
+  await loadMessages(id);
+  socket.emit('room:join', { conversationId: id });
+
+  // Responsive
+  if (window.innerWidth <= 700) {
+    $('sidebar').classList.add('hidden');
+    $('main-area').classList.remove('hidden');
+  }
+
+  renderSidebar();
+}
+
+async function loadMessages(convoId) {
+  const area = $('messages-area');
+  area.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
+  try {
+    const data = await api('GET', `/conversations/${convoId}/messages?limit=50`);
+    renderMessages(data.messages || []);
+    scrollToBottom();
+  } catch (err) {
+    area.innerHTML = '<div class="empty-state"><p>Failed to load messages</p></div>';
+  }
+}
+
+function renderMessages(msgs) {
+  const area = $('messages-area');
+  if (!msgs.length) {
+    area.innerHTML = '<div class="empty-state"><div class="emoji">👋</div><p>No messages yet. Say hello!</p></div>';
+    return;
+  }
+
+  let html = '';
+  let lastDate = '';
+
+  msgs.forEach(msg => {
+    const dateStr = formatDate(msg.created_at);
+    if (dateStr !== lastDate) {
+      html += `<div class="date-divider">${dateStr}</div>`;
+      lastDate = dateStr;
+    }
+    html += renderMessageRow(msg);
+  });
+
+  area.innerHTML = html;
+}
+
+function renderMessageRow(msg, isNew = false) {
+  const isMe = msg.sender_id === currentUser?.id;
+  const cls = isMe ? 'me' : 'them';
+  const deleted = msg.is_deleted ? ' deleted' : '';
+  const senderLabel = !isMe && currentConvo?.type !== 'direct'
+    ? `<div class="bubble-sender">${msg.sender_name || ''}</div>` : '';
+  const readIcon = isMe ? `<span class="read-status">✓</span>` : '';
+  const content = msg.is_deleted ? 'This message was deleted' : (msg.content || '');
+
+  return `
+    <div class="message-row ${cls}" data-id="${msg.id}">
+      ${!isMe ? `<div class="avatar avatar-xs">${initials(msg.sender_name)}</div>` : ''}
+      <div class="bubble ${cls}${deleted}">
+        ${senderLabel}
+        <div>${content}</div>
+        <div class="bubble-meta">
+          <span class="bubble-time">${formatTime(msg.created_at)}</span>
+          ${readIcon}
+        </div>
+      </div>
+    </div>`;
+}
+
+function appendMessage(msg) {
+  const area = $('messages-area');
+  const empty = area.querySelector('.empty-state');
+  if (empty) empty.remove();
+  area.insertAdjacentHTML('beforeend', renderMessageRow(msg, true));
+}
+
+function scrollToBottom() {
+  const area = $('messages-area');
+  area.scrollTop = area.scrollHeight;
+}
+
+async function sendMessage() {
+  if (!currentConvo) return;
+  const input = $('msg-input');
+  const content = input.value.trim();
+  if (!content) return;
+
+  const tempId = `temp-${Date.now()}`;
+  const tempMsg = {
+    id: tempId, conversation_id: currentConvo.id, sender_id: currentUser.id,
+    content, type: 'text', created_at: new Date().toISOString(), is_deleted: 0,
+    sender_name: currentUser.full_name,
+  };
+
+  // Optimistic UI
+  const area = $('messages-area');
+  const empty = area.querySelector('.empty-state');
+  if (empty) empty.remove();
+  const html = renderMessageRow(tempMsg).replace(`data-id="${tempId}"`, `data-id="${tempId}" data-temp="${tempId}"`);
+  area.insertAdjacentHTML('beforeend', html);
+  scrollToBottom();
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  socket.emit('message:send', { conversationId: currentConvo.id, content, tempId });
+  socket.emit('typing:stop', { conversationId: currentConvo.id });
+  clearTimeout(typingTimer);
+}
+
+let isTyping = false;
+function handleTyping() {
+  if (!currentConvo) return;
+  if (!isTyping) {
+    isTyping = true;
+    socket.emit('typing:start', { conversationId: currentConvo.id });
+  }
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    isTyping = false;
+    socket.emit('typing:stop', { conversationId: currentConvo.id });
+  }, 2000);
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ── NEW CONVERSATION ──────────────────────────────────────────────────────────
+function openNewConvoModal() {
+  selectedUsers = [];
+  newConvoType = currentTab === 'groups' ? 'group' : 'direct';
+  setConvoType(newConvoType);
+  renderMemberList(allUsers);
+  openModal('new-convo-modal');
+}
+
+function setConvoType(type) {
+  newConvoType = type;
+  $('direct-tab').classList.toggle('active', type === 'direct');
+  $('group-tab').classList.toggle('active', type === 'group');
+  $('group-name-field').style.display = type === 'group' ? 'block' : 'none';
+}
+
+function searchMembers(q) {
+  const filtered = q ? allUsers.filter(u => u.full_name.toLowerCase().includes(q.toLowerCase())) : allUsers;
+  renderMemberList(filtered);
+}
+
+function renderMemberList(users) {
+  $('member-list').innerHTML = users.map(u => {
+    const checked = selectedUsers.includes(u.id);
+    return `
+      <div class="member-item" onclick="toggleMember('${u.id}')">
+        <div class="member-check ${checked ? 'checked' : ''}" id="check-${u.id}">${checked ? '✓' : ''}</div>
+        <div class="avatar avatar-xs">${initials(u.full_name)}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600">${u.full_name}</div>
+          <div style="font-size:12px;color:var(--text2)">${u.church_role}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleMember(id) {
+  const idx = selectedUsers.indexOf(id);
+  if (idx >= 0) selectedUsers.splice(idx, 1); else selectedUsers.push(id);
+  const el = $(`check-${id}`);
+  if (el) { el.classList.toggle('checked', selectedUsers.includes(id)); el.textContent = selectedUsers.includes(id) ? '✓' : ''; }
+}
+
+async function createConversation() {
+  if (!selectedUsers.length) { toast('Select at least one person', 'error'); return; }
+  try {
+    const body = {
+      type: newConvoType,
+      member_ids: selectedUsers,
+      name: newConvoType === 'group' ? $('group-name-input').value.trim() : undefined,
+    };
+    const data = await api('POST', '/conversations', body);
+    closeModal('new-convo-modal');
+    await loadConversations();
+    await openConvo(data.conversation_id);
+    switchTab(newConvoType === 'group' ? 'groups' : 'chats');
+    toast('Conversation started! 🎉', 'success');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ── CHURCH PANEL ───────────────────────────────────────────────────────────────
+async function renderChurchPanel() {
+  const c = $('sidebar-content');
+  const isLeader = ['admin','pastor','leader'].includes(currentUser?.church_role);
+
+  let verse = { reference: 'Loading...', text: '' };
+  try { const d = await api('GET', '/church/verse-of-day'); verse = d.verse; } catch {}
+
+  c.innerHTML = `
+    <div class="church-panel">
+      <div class="church-card" onclick="openChurchSection('prayer')">
+        <h3>🙏 Prayer Requests</h3>
+        <p>Share and intercede for the community</p>
+      </div>
+      <div class="church-card" onclick="openChurchSection('announcements')">
+        <h3>📢 Announcements</h3>
+        <p>Latest news from leadership</p>
+      </div>
+      <div class="church-card" onclick="openChurchSection('events')">
+        <h3>📅 Events</h3>
+        <p>Upcoming services & activities</p>
+      </div>
+      <div class="church-card" onclick="openChurchSection('quiz')">
+        <h3>📖 Bible Quiz</h3>
+        <p>Test your scripture knowledge!</p>
+      </div>
+      <div class="church-card" style="border-color:rgba(201,168,76,0.3)">
+        <h3>✝ Verse of the Day</h3>
+        <p style="color:var(--gold);font-style:italic;margin-bottom:4px">${verse.reference}</p>
+        <p>${verse.text}</p>
+      </div>
+    </div>`;
+}
+
+async function openChurchSection(section) {
+  $('welcome-screen').style.display = 'none';
+  const cv = $('chat-view');
+  cv.style.display = 'flex';
+  cv.style.flexDirection = 'column';
+  currentConvo = null;
+
+  const titles = { prayer: '🙏 Prayer Requests', announcements: '📢 Announcements', events: '📅 Events', quiz: '📖 Bible Quiz' };
+  $('chat-avatar').innerHTML = { prayer: '🙏', announcements: '📢', events: '📅', quiz: '📖' }[section];
+  $('chat-avatar').style.background = 'var(--bg3)';
+  $('chat-name').textContent = titles[section];
+  $('chat-sub').textContent = '';
+  $('input-area') && ($('input-area').style.display = 'none');
+
+  const area = $('messages-area');
+  const isLeader = ['admin','pastor','leader'].includes(currentUser?.church_role);
+
+  if (section === 'prayer') {
+    area.innerHTML = `<div style="text-align:right;margin-bottom:10px">
+      <button class="btn btn-gold btn-sm" onclick="openModal('prayer-modal')">+ Submit Prayer</button>
+    </div>`;
+    try {
+      const data = await api('GET', '/church/prayers');
+      const prayers = data.prayers || [];
+      if (!prayers.length) { area.innerHTML += '<div class="empty-state"><div class="emoji">🙏</div><p>No prayer requests yet</p></div>'; }
+      prayers.forEach(p => {
+        area.innerHTML += `
+          <div class="prayer-item">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <div class="avatar avatar-xs">${initials(p.author_name)}</div>
+              <div style="font-size:12px;color:var(--text2)">${p.author_name} · ${formatDate(p.created_at)}</div>
+              ${p.is_answered ? '<span style="color:var(--green);font-size:11px;font-weight:700">✓ ANSWERED</span>' : ''}
+            </div>
+            <h4>${p.title}</h4>
+            <p>${p.body}</p>
+            <div class="prayer-actions">
+              <button class="pray-btn" onclick="prayFor('${p.id}', this)">🙏 Pray (${p.pray_count})</button>
+            </div>
+          </div>`;
+      });
+    } catch { area.innerHTML += '<p style="color:var(--text2);text-align:center">Failed to load</p>'; }
+  }
+
+  else if (section === 'announcements') {
+    area.innerHTML = isLeader ? `<div style="text-align:right;margin-bottom:10px">
+      <button class="btn btn-gold btn-sm" onclick="openModal('ann-modal')">+ Broadcast</button>
+    </div>` : '';
+    try {
+      const data = await api('GET', '/church/announcements');
+      const items = data.announcements || [];
+      if (!items.length) { area.innerHTML += '<div class="empty-state"><div class="emoji">📢</div><p>No announcements</p></div>'; }
+      items.forEach(a => {
+        area.innerHTML += `
+          <div class="announcement-item">
+            <h4>${a.title}</h4>
+            <p>${a.body}</p>
+            <div class="ann-meta">📌 ${a.author_name} · ${formatDate(a.created_at)}</div>
+          </div>`;
+      });
+    } catch { area.innerHTML += '<p style="color:var(--text2);text-align:center">Failed to load</p>'; }
+  }
+
+  else if (section === 'events') {
+    area.innerHTML = isLeader ? `<div style="text-align:right;margin-bottom:10px">
+      <button class="btn btn-primary btn-sm" onclick="openModal('event-modal')">+ Create Event</button>
+    </div>` : '';
+    try {
+      const data = await api('GET', '/church/events');
+      const events = data.events || [];
+      if (!events.length) { area.innerHTML += '<div class="empty-state"><div class="emoji">📅</div><p>No upcoming events</p></div>'; }
+      events.forEach(e => {
+        const d = new Date(e.starts_at);
+        const typeIcons = { service: '⛪', bible_study: '📖', crusade: '✝', other: '📌' };
+        area.innerHTML += `
+          <div class="event-item">
+            <div class="event-date-block">
+              <div class="event-day">${d.getDate()}</div>
+              <div class="event-month">${d.toLocaleString('default',{month:'short'}).toUpperCase()}</div>
+            </div>
+            <div class="event-info">
+              <h4>${typeIcons[e.event_type] || '📌'} ${e.title}</h4>
+              <p>${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}${e.location ? ' · ' + e.location : ''}</p>
+              ${e.description ? `<p style="margin-top:4px">${e.description}</p>` : ''}
+            </div>
+          </div>`;
+      });
+    } catch { area.innerHTML += '<p>Failed to load</p>'; }
+  }
+
+  else if (section === 'quiz') {
+    area.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">Loading quiz...</div>';
+    try {
+      const data = await api('GET', '/church/quiz');
+      const questions = data.questions || [];
+      let html = `<div id="quiz-container">`;
+      let qIdx = 0;
+      questions.forEach(q => {
+        html += `<div class="quiz-q" style="margin-bottom:4px">Q${++qIdx}: ${q.question}</div>`;
+        q.options.forEach((opt, i) => {
+          html += `<div class="quiz-option" onclick="selectOption(${q.id},${i},this)">${opt}</div>`;
+        });
+        html += '<br>';
+      });
+      html += `<button class="btn btn-gold" onclick="submitQuiz(${JSON.stringify(questions).replace(/"/g,"'")})">Submit Answers</button></div>`;
+      area.innerHTML = html;
+    } catch { area.innerHTML = '<p>Failed to load quiz</p>'; }
+  }
+
+  // Hide input area for church sections
+  $('input-area').style.display = 'none';
+}
+
+const quizAnswers = {};
+function selectOption(qId, optIdx, el) {
+  document.querySelectorAll(`[onclick^="selectOption(${qId}"]`).forEach(e => e.classList.remove('selected'));
+  el.classList.add('selected');
+  quizAnswers[qId] = optIdx;
+}
+
+async function submitQuiz(questions) {
+  try {
+    const data = await api('POST', '/church/quiz/submit', { answers: quizAnswers });
+    toast(`🎉 Score: ${data.score}/${data.total} (${data.percentage}%)`, data.percentage >= 70 ? 'success' : 'info');
+  } catch { toast('Failed to submit', 'error'); }
+}
+
+async function prayFor(id, btn) {
+  try {
+    const data = await api('POST', `/church/prayers/${id}/pray`);
+    btn.textContent = `🙏 Pray (${data.pray_count})`;
+    toast('Your prayer was added 🙏', 'success');
+  } catch { toast('Failed', 'error'); }
+}
+
+async function submitPrayer() {
+  const title = $('prayer-title').value.trim();
+  const body = $('prayer-body').value.trim();
+  const is_anonymous = $('prayer-anon').checked;
+  if (!title || !body) { toast('Fill in all fields', 'error'); return; }
+  try {
+    await api('POST', '/church/prayers', { title, body, is_anonymous });
+    closeModal('prayer-modal');
+    $('prayer-title').value = ''; $('prayer-body').value = '';
+    toast('Prayer submitted 🙏', 'success');
+    openChurchSection('prayer');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function postAnnouncement() {
+  const title = $('ann-title').value.trim();
+  const body = $('ann-body').value.trim();
+  if (!title || !body) { toast('Fill in all fields', 'error'); return; }
+  try {
+    await api('POST', '/church/announcements', { title, body });
+    closeModal('ann-modal');
+    $('ann-title').value = ''; $('ann-body').value = '';
+    toast('Announcement broadcast! 📢', 'success');
+    openChurchSection('announcements');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function createEvent() {
+  const body = {
+    title: $('event-title').value.trim(),
+    description: $('event-desc').value.trim(),
+    location: $('event-location').value.trim(),
+    event_type: $('event-type').value,
+    starts_at: $('event-start').value,
+    ends_at: $('event-end').value,
+  };
+  if (!body.title || !body.starts_at) { toast('Title and start time required', 'error'); return; }
+  try {
+    await api('POST', '/church/events', body);
+    closeModal('event-modal');
+    toast('Event created! 📅', 'success');
+    openChurchSection('events');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ── PROFILE PANEL ─────────────────────────────────────────────────────────────
+function renderProfilePanel() {
+  const c = $('sidebar-content');
+  const u = currentUser;
+  const roleColors = { pastor: 'var(--gold)', leader: 'var(--blue-light)', admin: '#ff8080', member: 'var(--text2)' };
+  c.innerHTML = `
+    <div style="padding:24px;text-align:center">
+      <div class="avatar" style="width:72px;height:72px;font-size:28px;margin:0 auto 12px">${initials(u.full_name)}</div>
+      <h3 style="font-size:18px;font-weight:800">${u.full_name}</h3>
+      <span class="role-badge role-${u.church_role}">${u.church_role}</span>
+      <p style="color:var(--text2);font-size:13px;margin-top:8px">${u.email}</p>
+      ${u.bio ? `<p style="color:var(--text2);font-size:13px;margin-top:4px;font-style:italic">"${u.bio}"</p>` : ''}
+    </div>
+    <div style="padding:0 16px;display:flex;flex-direction:column;gap:10px">
+      <div class="church-card" style="cursor:default">
+        <h3>✉️ Email</h3>
+        <p>${u.email}</p>
+      </div>
+      <div class="church-card" style="cursor:default">
+        <h3>👥 Role</h3>
+        <p style="color:${roleColors[u.church_role]};font-weight:700;text-transform:capitalize">${u.church_role}</p>
+      </div>
+      <button class="btn btn-secondary" onclick="logout()">🚪 Sign Out</button>
+    </div>`;
+}
+
+// ── CHAT INFO ─────────────────────────────────────────────────────────────────
+function openChatInfo() {
+  if (!currentConvo) return;
+  const name = getConvoName(currentConvo);
+  $('chat-info-title').textContent = name;
+  const members = currentConvo.members || [];
+  $('chat-info-content').innerHTML = `
+    <p style="color:var(--text2);font-size:13px;margin-bottom:12px">${currentConvo.type === 'direct' ? 'Direct Conversation' : `${members.length} members`}</p>
+    ${members.map(m => `
+      <div class="member-item">
+        <div class="avatar avatar-xs">${initials(m.full_name)}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600">${m.full_name} ${m.id === currentUser?.id ? '(You)' : ''}</div>
+        </div>
+        <span class="role-badge role-${m.church_role}">${m.church_role}</span>
+      </div>`).join('')}`;
+  openModal('chat-info-modal');
+}
+
+// ── CALLS (WebRTC) ─────────────────────────────────────────────────────────────
+const ICE_SERVERS = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+async function startCall(type) {
+  if (!currentConvo) { toast('Open a chat first', 'error'); return; }
+  const other = currentConvo.members?.find(m => m.id !== currentUser?.id);
+  if (!other) { toast('No one to call', 'error'); return; }
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
+    peerConnection = new RTCPeerConnection(ICE_SERVERS);
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+    if (type === 'video') {
+      $('local-video').srcObject = localStream;
+      $('local-video').style.display = 'block';
+    }
+
+    peerConnection.onicecandidate = e => {
+      if (e.candidate) socket.emit('call:ice-candidate', { targetUserId: other.id, candidate: e.candidate });
+    };
+    peerConnection.ontrack = e => {
+      $('remote-video').srcObject = e.streams[0];
+      $('remote-video').style.display = type === 'video' ? 'block' : 'none';
+    };
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('call:offer', { targetUserId: other.id, offer, type });
+
+    callData = { targetUserId: other.id, type };
+    $('call-emoji').textContent = type === 'video' ? '📹' : '📞';
+    $('call-name-display').textContent = other.full_name;
+    $('call-status-display').textContent = 'Calling...';
+    $('call-actions').style.display = 'flex';
+    $('call-incoming-actions').style.display = 'none';
+    $('call-overlay').classList.add('active');
+  } catch (err) {
+    toast('Could not access microphone/camera', 'error');
+    console.error(err);
+  }
+}
+
+function startVoiceCall() { startCall('audio'); }
+function startVideoCall() { startCall('video'); }
+
+async function acceptCall() {
+  if (!callData?.offer) return;
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callData.type === 'video' });
+    peerConnection = new RTCPeerConnection(ICE_SERVERS);
+    localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+    peerConnection.onicecandidate = e => {
+      if (e.candidate) socket.emit('call:ice-candidate', { targetUserId: callData.callerId, candidate: e.candidate });
+    };
+    peerConnection.ontrack = e => { $('remote-video').srcObject = e.streams[0]; };
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('call:answer', { callerId: callData.callerId, answer });
+    $('call-status-display').textContent = 'Connected';
+    $('call-actions').style.display = 'flex';
+    $('call-incoming-actions').style.display = 'none';
+  } catch (err) { toast('Failed to accept call', 'error'); endCall(); }
+}
+
+function rejectCall() {
+  if (callData?.callerId) socket.emit('call:reject', { callerId: callData.callerId });
+  endCallUI();
+}
+
+function endCall() {
+  if (callData?.targetUserId) socket.emit('call:end', { targetUserId: callData.targetUserId });
+  else if (callData?.callerId) socket.emit('call:end', { targetUserId: callData.callerId });
+  endCallUI();
+}
+
+function endCallUI() {
+  if (peerConnection) { peerConnection.close(); peerConnection = null; }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  $('call-overlay').classList.remove('active');
+  $('local-video').srcObject = null;
+  $('remote-video').srcObject = null;
+  $('local-video').style.display = 'none';
+  $('remote-video').style.display = 'none';
+  callData = null;
+}
+
+let isMuted = false;
+function toggleMute() {
+  if (!localStream) return;
+  isMuted = !isMuted;
+  localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+  $('mute-btn').textContent = isMuted ? '🔇' : '🎤';
+  $('mute-btn').style.background = isMuted ? 'var(--red)' : 'var(--bg3)';
+}
+
+// ── RESPONSIVE ────────────────────────────────────────────────────────────────
+function showSidebar() {
+  $('sidebar').classList.remove('hidden');
+  $('main-area').classList.add('hidden');
+}
+
+// Make input area always visible for chat
+const origOpenConvo = window.openConvo;
+window.openConvo = async (id) => {
+  $('input-area').style.display = 'flex';
+  await origOpenConvo(id);
+};
+
+// Close modal on outside click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+</script>
+</body>
+</html>
